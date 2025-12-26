@@ -3,6 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "[launch] starting dev-text-gen container..."
+echo "[launch] running scripts/setup.sh for text-gen..."
 cd "$ROOT_DIR"
-docker compose up -d dev-text-gen
+bash scripts/setup.sh "$@"
