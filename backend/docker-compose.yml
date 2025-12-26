@@ -1,0 +1,27 @@
+services:
+  text:
+    build: .
+    image: ollama/ollama
+    working_dir: /app
+    ports:
+      - "7099:11434"
+    volumes:
+      - .:/app
+      - /root/.ollama:/root/.ollama
+      - ~/.cache:/root/.cache
+    env_file:
+      - .env
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - OLLAMA_CONTEXT_LENGTH=16384
+      - OLLAMA_FLASH_ATTENTION:true
+      - OLLAMA_NUM_PARALLEL:2
+    runtime: nvidia
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
