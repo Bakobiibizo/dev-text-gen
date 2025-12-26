@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  build-essential pkg-config \
  cmake ninja-build \
  python3.12-venv python3.12-dev \
+ cargo \
  && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
