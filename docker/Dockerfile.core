@@ -21,6 +21,10 @@ RUN mkdir -p ${RUSTUP_HOME} ${CARGO_HOME} \
  && chown -R ${UID}:${GID} ${RUSTUP_HOME} ${CARGO_HOME} \
  && ${CARGO_HOME}/bin/cargo --version
 
+# Install Ollama (arm64 binary assumed; adjust URL if arch differs)
+RUN curl -fsSL https://ollama.com/download/ollama-linux-arm64 -o /usr/local/bin/ollama \
+ && chmod +x /usr/local/bin/ollama
+
 RUN pip install --no-cache-dir uv
 
 RUN pip uninstall -y pynvml || true \
