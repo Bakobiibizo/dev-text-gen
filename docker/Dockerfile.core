@@ -21,15 +21,8 @@ RUN mkdir -p ${RUSTUP_HOME} ${CARGO_HOME} \
  && chown -R ${UID}:${GID} ${RUSTUP_HOME} ${CARGO_HOME} \
  && ${CARGO_HOME}/bin/cargo --version
 
-# Install Ollama (arch-aware; capitalized path to avoid 404)
-RUN ARCH=$(uname -m) \
- && case "$ARCH" in \
-      x86_64|amd64) OLLAMA_ARCH=linux-amd64 ;; \
-      aarch64|arm64) OLLAMA_ARCH=linux-arm64 ;; \
-      *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
-    esac \
- && curl -fsSL "https://ollama.com/download/Ollama-${OLLAMA_ARCH}" -o /usr/local/bin/ollama \
- && chmod +x /usr/local/bin/ollama
+# Install Ollama (official installer handles arch detection)
+RUN curl -fsSL https://ollama.com/install.sh | sh
 
 RUN pip install --no-cache-dir uv
 
