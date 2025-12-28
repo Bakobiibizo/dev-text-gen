@@ -28,6 +28,7 @@ COPY --from=builder /build/target/release/dev-text-gen /app/proxy
 ENV API_HOST=0.0.0.0
 ENV API_PORT=7103
 ENV OLLAMA_URL=http://localhost:11434
+ENV OLLAMA_HOST=0.0.0.0:11434
 ENV MODEL_NAME=gemma3:27b
 ENV BACKEND_CMD=ollama
 ENV BACKEND_ARGS=serve
