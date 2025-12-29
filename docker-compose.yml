@@ -16,6 +16,7 @@ services:
     tty: true
     volumes:
       - models:/models
+      - inference_ollama-models:/home/dev/.ollama
       - hf-cache:/home/dev/.cache/huggingface
       - torch-cache:/home/dev/.cache/torch
       - uv-cache:/home/dev/.cache/uv
@@ -49,6 +50,8 @@ services:
 
 volumes:
   models:
+  inference_ollama-models:
+    external: true
   hf-cache:
   torch-cache:
   uv-cache:

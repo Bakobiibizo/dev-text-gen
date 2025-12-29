@@ -2,8 +2,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{
+    body::Body,
     extract::State,
-    http::StatusCode,
+    http::{header, Request, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -143,6 +144,11 @@ async fn main() {
         .route("/ready", get(ready))
         .route("/pull", post(pull))
         .route("/generate", post(generate))
+        // OpenAI-compatible API routes
+        .route("/v1/models", get(v1_models))
+        .route("/v1/chat/completions", post(v1_chat_completions))
+        .route("/v1/completions", post(v1_completions))
+        .route("/v1/embeddings", post(v1_embeddings))
         .layer(CorsLayer::permissive())
         .with_state(state.clone());
 
@@ -170,5 +176,103 @@ async fn ollama_pull(client: &Client, base_url: &str, model: &str) -> Result<(),
         Ok(resp) if resp.status().is_success() => Ok(()),
         Ok(_) => Err("pull failed".to_string()),
         Err(e) => Err(e.to_string()),
+    }
+}
+
+// OpenAI-compatible API passthrough handlers
+async fn v1_models(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let url = format!("{}/v1/models", state.config.ollama_url);
+    match state.client.get(&url).send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let headers = resp.headers().clone();
+            match resp.text().await {
+                Ok(text) => {
+                    let mut response = (status, text).into_response();
+                    if let Some(ct) = headers.get(header::CONTENT_TYPE) {
+                        response.headers_mut().insert(header::CONTENT_TYPE, ct.clone());
+                    }
+                    response
+                }
+                Err(err) => {
+                    error!("v1/models read error: {}", err);
+                    (StatusCode::BAD_GATEWAY, "upstream read error").into_response()
+                }
+            }
+        }
+        Err(err) => {
+            error!("v1/models upstream error: {}", err);
+            (StatusCode::BAD_GATEWAY, "upstream error").into_response()
+        }
+    }
+}
+
+async fn v1_chat_completions(
+    State(state): State<Arc<AppState>>,
+    req: Request<Body>,
+) -> impl IntoResponse {
+    forward_v1_request(state, "v1/chat/completions", req).await
+}
+
+async fn v1_completions(
+    State(state): State<Arc<AppState>>,
+    req: Request<Body>,
+) -> impl IntoResponse {
+    forward_v1_request(state, "v1/completions", req).await
+}
+
+async fn v1_embeddings(
+    State(state): State<Arc<AppState>>,
+    req: Request<Body>,
+) -> impl IntoResponse {
+    forward_v1_request(state, "v1/embeddings", req).await
+}
+
+async fn forward_v1_request(
+    state: Arc<AppState>,
+    path: &str,
+    req: Request<Body>,
+) -> impl IntoResponse {
+    let url = format!("{}/{}", state.config.ollama_url, path);
+
+    // Read the request body
+    let body_bytes = match axum::body::to_bytes(req.into_body(), 10 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            error!("{} body read error: {}", path, err);
+            return (StatusCode::BAD_REQUEST, "failed to read request body").into_response();
+        }
+    };
+
+    // Forward to Ollama
+    match state
+        .client
+        .post(&url)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(body_bytes.to_vec())
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let status = resp.status();
+            let headers = resp.headers().clone();
+            match resp.text().await {
+                Ok(text) => {
+                    let mut response = (status, text).into_response();
+                    if let Some(ct) = headers.get(header::CONTENT_TYPE) {
+                        response.headers_mut().insert(header::CONTENT_TYPE, ct.clone());
+                    }
+                    response
+                }
+                Err(err) => {
+                    error!("{} read error: {}", path, err);
+                    (StatusCode::BAD_GATEWAY, "upstream read error").into_response()
+                }
+            }
+        }
+        Err(err) => {
+            error!("{} upstream error: {}", path, err);
+            (StatusCode::BAD_GATEWAY, "upstream error").into_response()
+        }
     }
 }
