@@ -9,6 +9,8 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use axum::BoxError;
+use futures_util::TryStreamExt;
 use reqwest::Client;
 use tokio::net::TcpListener;
 use serde::{Deserialize, Serialize};
@@ -18,6 +20,7 @@ use tracing::{error, info};
 
 mod backend;
 mod config;
+mod keepalive;
 
 #[derive(Clone)]
 struct AppState {
@@ -31,6 +34,8 @@ struct GenerateRequest {
     prompt: String,
     #[serde(default)]
     model: Option<String>,
+    #[serde(default)]
+    stream: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -65,26 +70,39 @@ async fn generate(
     Json(req): Json<GenerateRequest>,
 ) -> impl IntoResponse {
     let model = req.model.unwrap_or_else(|| state.config.model_name.clone());
+    let stream = req.stream.unwrap_or(true);
     let body = serde_json::json!({
         "model": model,
         "prompt": req.prompt,
-        "stream": false
+        "stream": stream
     });
     let url = format!("{}/api/generate", state.config.ollama_url);
     match state.client.post(&url).json(&body).send().await {
         Ok(resp) => {
             let status = resp.status();
-            match resp.text().await {
-                Ok(text) => (status, text),
-                Err(err) => {
-                    error!("generate read error: {}", err);
-                    (StatusCode::BAD_GATEWAY, "upstream read error".to_string())
+            if stream {
+                let headers = resp.headers().clone();
+                let stream_body = resp
+                    .bytes_stream()
+                    .map_err(|e| -> BoxError { Box::new(e) });
+                let mut response = (status, Body::from_stream(stream_body)).into_response();
+                if let Some(ct) = headers.get(header::CONTENT_TYPE) {
+                    response.headers_mut().insert(header::CONTENT_TYPE, ct.clone());
+                }
+                response
+            } else {
+                match resp.text().await {
+                    Ok(text) => (status, text).into_response(),
+                    Err(err) => {
+                        error!("generate read error: {}", err);
+                        (StatusCode::BAD_GATEWAY, "upstream read error".to_string()).into_response()
+                    }
                 }
             }
         }
         Err(err) => {
             error!("generate upstream error: {}", err);
-            (StatusCode::BAD_GATEWAY, "upstream error".to_string())
+            (StatusCode::BAD_GATEWAY, "upstream error".to_string()).into_response()
         }
     }
 }
@@ -113,6 +131,13 @@ async fn main() {
     let health_client = client.clone();
     tokio::spawn(async move {
         backend::health_check_loop(health_cfg, health_client).await;
+    });
+
+    // Keep backend/model warm with periodic ping
+    let keepalive_cfg = cfg.clone();
+    let keepalive_client = client.clone();
+    tokio::spawn(async move {
+        keepalive::ping_loop(keepalive_cfg, keepalive_client).await;
     });
 
     // Preload (pull) target model

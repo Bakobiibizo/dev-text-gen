@@ -36,9 +36,6 @@ RUN pip install --no-cache-dir --no-deps --upgrade setuptools wheel \
 && python -c "import torchaudio; print(torchaudio.__version__)" \
 && python -c "import torchvision; print(torchvision.__version__)"
 
-RUN groupadd -g ${GID} dev || true \
-&& useradd -m -u ${UID} -g ${GID} -s /bin/bash dev || true \
-&& mkdir -p /home/dev/.cache/huggingface /home/dev/.cache/torch /home/dev/.cache/uv /models \
-&& chown -R ${UID}:${GID} /home/dev /models
+RUN chown -R dev:dev /home/dev/.ollama || true
 
 WORKDIR /workspace
