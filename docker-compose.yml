@@ -3,7 +3,7 @@ services:
     image: ${OLLAMA_IMAGE:-ollama/ollama:0.31.1}
     restart: unless-stopped
     volumes:
-      - ollama-models:/root/.ollama
+      - ${OLLAMA_MODELS_PATH:-ollama-models}:/root/.ollama
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}

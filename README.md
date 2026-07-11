@@ -29,6 +29,15 @@ The API binds to `127.0.0.1:7103` by default. Set `API_TOKEN` in `.env` before p
 
 The default model is `gemma3:1b`. Model data persists in the `ollama-models` volume.
 
+To reuse an existing host Ollama cache instead of creating a named volume, set
+`OLLAMA_MODELS_PATH` to its absolute path and select a model already present there:
+
+```bash
+OLLAMA_MODELS_PATH="$HOME/.ollama" MODEL_NAME=llama3.2:latest docker compose up --build -d
+```
+
+The container uses the cache at `/root/.ollama`; the host directory is not copied.
+
 Pull the configured model explicitly:
 
 ```bash
@@ -74,6 +83,7 @@ When `API_TOKEN` is configured, add `Authorization: Bearer <token>` to `/pull`, 
 | `PRELOAD` | `false` | Pull the configured model at startup |
 | `MAX_BODY_BYTES` | `10485760` | Maximum OpenAI request body size |
 | `OLLAMA_IMAGE` | `ollama/ollama:0.31.1` | Official backend image |
+| `OLLAMA_MODELS_PATH` | `ollama-models` | Named volume or absolute host cache path |
 | `OLLAMA_KEEP_ALIVE` | `5m` | Ollama model residency period |
 
 ## Verify
