@@ -1,60 +1,36 @@
 services:
-  dev-text-gen:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.core
-      args:
-        UID: ${UID:-1000}
-        GID: ${GID:-1000}
-    image: ${CORE_IMAGE:-devkit-core:local}
-    working_dir: /workspace
-    ipc: host
-    ulimits:
-      memlock: -1
-      stack: 67108864
-    stdin_open: true
-    tty: true
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:0.31.1}
+    restart: unless-stopped
     volumes:
-      - models:/models
-      - inference_ollama-models:/home/dev/.ollama
-      - hf-cache:/home/dev/.cache/huggingface
-      - torch-cache:/home/dev/.cache/torch
-      - uv-cache:/home/dev/.cache/uv
-      - .:/workspace:cached
-    ports:
-      - "${API_PORT:-11435}:${API_PORT:-11435}"
+      - ollama-models:/root/.ollama
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - HOME=/home/dev
-      - HF_HOME=/home/dev/.cache/huggingface
-      - TRANSFORMERS_CACHE=/home/dev/.cache/huggingface
-      - TORCH_HOME=/home/dev/.cache/torch
-      - API_HOST=0.0.0.0
-      - API_PORT=${API_PORT:-11435}
-      - BACKEND_CMD=${BACKEND_CMD:-ollama}
-      - BACKEND_ARGS=${BACKEND_ARGS:-serve}
-      - OLLAMA_HOST=${OLLAMA_HOST:-0.0.0.0:11434}
-      - MODEL_NAME=${MODEL_NAME:-gemma3:27b}
-      - OLLAMA_NUM_PARALLEL=1
-      - OLLAMA_MAX_LOADED_MODELS=1
-      - OLLAMA_KEEP_ALIVE=-1
-      - BACKEND_WORKDIR=${BACKEND_WORKDIR:-/workspace}
-      - BACKEND_PORT=${BACKEND_PORT:-11434}
-      - BACKEND_HEALTH_PATH=${BACKEND_HEALTH_PATH:-/api/tags}
-      - PRELOAD=${PRELOAD:-true}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-    user: "${UID:-1000}:${GID:-1000}"
-    command: ["bash", "-lc", "cargo run --bin dev-text-gen"]
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  proxy:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${API_PORT:-7103}:7103"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 7103
+      API_TOKEN: ${API_TOKEN:-}
+      OLLAMA_URL: http://ollama:11434
+      MODEL_NAME: ${MODEL_NAME:-gemma3:1b}
+      PRELOAD: ${PRELOAD:-false}
+      MAX_BODY_BYTES: ${MAX_BODY_BYTES:-10485760}
 
 volumes:
-  models:
-  inference_ollama-models:
-    external: true
-  hf-cache:
-  torch-cache:
-  uv-cache:
+  ollama-models:

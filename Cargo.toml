@@ -1,6 +1,6 @@
 [package]
 name = "dev-text-gen"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 
 [dependencies]
@@ -12,11 +12,11 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dotenv = "0.15"
 reqwest = { version = "0.12", features = ["json", "stream"] }
-tower-http = { version = "0.5", features = ["cors"] }
-tower = { version = "0.4", features = ["util"] }
-thiserror = "1.0"
-once_cell = "1.19"
+tower = { version = "0.5", features = ["util"] }
 futures-util = "0.3"
+
+[dev-dependencies]
+http-body-util = "0.1"
 
 [[bin]]
 name = "dev-text-gen"
